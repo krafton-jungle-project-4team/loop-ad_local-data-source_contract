@@ -1,0 +1,5 @@
+SETEX ad-context:u_001 300 '{"userId":"u_001","segments":["sports","mobile"],"updatedAt":"2026-06-25T03:00:00Z"}'
+SETEX ad-context:u_002 300 '{"userId":"u_002","segments":["books","desktop"],"updatedAt":"2026-06-25T03:00:00Z"}'
+SETEX decision-cache:u_001:slot_main 60 '{"campaignId":"cmp_001","creativeId":"cr_001","reason":"local dummy"}'
+SETEX campaign-budget:cmp_001 3600 '{"campaignId":"cmp_001","dailyBudget":100.0,"spent":12.5,"currency":"USD"}'
+
