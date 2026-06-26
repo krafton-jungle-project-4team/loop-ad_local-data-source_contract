@@ -9,7 +9,6 @@ Usage:
 Options:
   --base <git-ref>        Compare changes against this ref. Defaults to HEAD.
   --dry-run               Print selected data sources and commands without running them.
-  --with-dummy            Run <source>-dummy.sh after init for each selected source.
   --only <sources>        Override detection. Comma-separated: postgres,clickhouse,redis.
   --no-untracked          Ignore untracked files when detecting local changes.
   -h, --help              Show this help.
@@ -17,7 +16,7 @@ Options:
 Examples:
   refresh_changed_data_sources.sh local --dry-run
   refresh_changed_data_sources.sh local
-  refresh_changed_data_sources.sh local --base main --with-dummy
+  refresh_changed_data_sources.sh local --base main
   refresh_changed_data_sources.sh local --only postgres --dry-run
 USAGE
 }
@@ -25,7 +24,6 @@ USAGE
 ENVIRONMENT=""
 BASE_REF="HEAD"
 DRY_RUN=0
-WITH_DUMMY=0
 INCLUDE_UNTRACKED=1
 ONLY_SOURCES=""
 
@@ -38,10 +36,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dry-run)
             DRY_RUN=1
-            shift
-            ;;
-        --with-dummy)
-            WITH_DUMMY=1
             shift
             ;;
         --only)
@@ -197,7 +191,5 @@ run_command() {
 for source in "${selected_sources[@]}"; do
     run_command "./scripts/${source}-drop.sh" "${ENVIRONMENT}"
     run_command "./scripts/${source}-init.sh" "${ENVIRONMENT}"
-    if [[ "${WITH_DUMMY}" -eq 1 ]]; then
-        run_command "./scripts/${source}-dummy.sh" "${ENVIRONMENT}"
-    fi
+    run_command "./scripts/${source}-dummy.sh" "${ENVIRONMENT}"
 done

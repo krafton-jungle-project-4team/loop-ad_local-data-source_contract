@@ -1,13 +1,13 @@
 ---
 name: refresh-changed-data-sources
-description: Detect changed data source files in this loop-ad data contract repository and refresh only the affected local Postgres, ClickHouse, or Redis Docker services. Use when schema files, dummy data files, Redis contract files, datasource-specific scripts, or shared local datasource configuration changed and the local environment should be brought back in sync without running a full global drop/init.
+description: Detect changed data source files in this loop-ad data contract repository and refresh only the affected local Postgres, ClickHouse, or Redis Docker services by running drop, init, and dummy in order. Use when schema files, dummy data files, Redis contract files, datasource-specific scripts, or shared local datasource configuration changed and the local environment should be rebuilt consistently without running a full global reset.
 ---
 
 # Refresh Changed Data Sources
 
 ## Overview
 
-Use this skill to keep the local data contract environment aligned with the current git changes while avoiding unnecessary resets. The bundled script maps changed files to Postgres, ClickHouse, and Redis, then runs `drop -> init` only for the affected data sources.
+Use this skill to keep the local data contract environment aligned with the current git changes while avoiding unnecessary resets. The bundled script maps changed files to Postgres, ClickHouse, and Redis, then runs `drop -> init -> dummy` only for the affected data sources.
 
 ## Workflow
 
@@ -23,12 +23,6 @@ Use this skill to keep the local data contract environment aligned with the curr
 
 ```bash
 .codex/skills/refresh-changed-data-sources/scripts/refresh_changed_data_sources.sh local
-```
-
-5. Add `--with-dummy` only when dummy data should also be reapplied:
-
-```bash
-.codex/skills/refresh-changed-data-sources/scripts/refresh_changed_data_sources.sh local --with-dummy
 ```
 
 ## Change Mapping
