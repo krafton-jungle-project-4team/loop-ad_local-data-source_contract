@@ -1,0 +1,4 @@
+interface:
+  display_name: "Patch Local Data Source"
+  short_description: "Apply narrow AI local datasource patches"
+  default_prompt: "Use $patch-local-data-source to apply a narrow AI-generated local patch to the running data source without a full rebuild."
