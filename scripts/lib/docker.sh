@@ -24,12 +24,11 @@ remove_compose_volume() {
 }
 
 clickhouse_client() {
-    local args=(clickhouse-client --user "${CLICKHOUSE_USER:-default}")
+    local args=(clickhouse-client --user "${CLICKHOUSE_USER}")
 
-    if [[ -n "${CLICKHOUSE_PASSWORD:-}" ]]; then
+    if [[ -n "${CLICKHOUSE_PASSWORD}" ]]; then
         args+=(--password "${CLICKHOUSE_PASSWORD}")
     fi
 
     compose exec -T clickhouse "${args[@]}" "$@"
 }
-

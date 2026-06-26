@@ -2,9 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENVIRONMENT="${1:-local}"
 
-source "${SCRIPT_DIR}/lib/env.sh" "${ENVIRONMENT}"
+source "${SCRIPT_DIR}/lib/env.sh" "$@"
 source "${SCRIPT_DIR}/lib/docker.sh"
 source "${SCRIPT_DIR}/lib/wait.sh"
 
@@ -15,4 +14,3 @@ wait_clickhouse
 clickhouse_client \
     --multiquery \
     --queries-file /contract/clickhouse/dummy.sql
-
