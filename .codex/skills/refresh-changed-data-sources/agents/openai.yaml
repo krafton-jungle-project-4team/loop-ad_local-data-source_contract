@@ -1,0 +1,4 @@
+interface:
+  display_name: "Changed Data Source Refresh"
+  short_description: "Refresh only changed local data sources"
+  default_prompt: "Use $refresh-changed-data-sources to detect changed data source files and refresh only those local services."
