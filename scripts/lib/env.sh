@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENVIRONMENT="${1:-local}"
+if [[ $# -ne 1 || -z "$1" ]]; then
+    echo "Usage: $(basename "$0") <environment>" >&2
+    echo "Example: $(basename "$0") local" >&2
+    exit 1
+fi
+
+ENVIRONMENT="$1"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${ROOT_DIR}/environments/${ENVIRONMENT}.env"
 
@@ -13,4 +19,3 @@ fi
 set -a
 source "${ENV_FILE}"
 set +a
-

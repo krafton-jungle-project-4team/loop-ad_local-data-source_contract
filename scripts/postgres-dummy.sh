@@ -2,9 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENVIRONMENT="${1:-local}"
 
-source "${SCRIPT_DIR}/lib/env.sh" "${ENVIRONMENT}"
+source "${SCRIPT_DIR}/lib/env.sh" "$@"
 source "${SCRIPT_DIR}/lib/docker.sh"
 source "${SCRIPT_DIR}/lib/wait.sh"
 
@@ -18,4 +17,3 @@ compose exec -T postgres \
     --dbname "${POSTGRES_DB}" \
     --set ON_ERROR_STOP=1 \
     --file /contract/postgres/dummy.sql
-
