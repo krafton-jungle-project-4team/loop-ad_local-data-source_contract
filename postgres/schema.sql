@@ -822,3 +822,64 @@ DROP TRIGGER IF EXISTS trg_segment_ad_mappings_updated_at ON segment_ad_mappings
 CREATE TRIGGER trg_segment_ad_mappings_updated_at
 BEFORE UPDATE ON segment_ad_mappings
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- =========================================================
+-- 18. Generated Contents
+-- 추천 액션을 기반으로 생성되어 S3에 업로드된 콘텐츠.
+-- 배너 이미지의 S3 위치, 생성 상태, 생성 요청/결과 metadata를 저장한다.
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS generated_contents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id VARCHAR(128) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+
+    recommendation_result_id BIGINT NOT NULL
+        REFERENCES recommendation_results(id) ON DELETE CASCADE,
+
+    recommendation_action_id BIGINT NOT NULL
+        REFERENCES recommendation_actions(id) ON DELETE CASCADE,
+
+    action_id VARCHAR(128) NOT NULL,
+
+    content_type VARCHAR(64) NOT NULL,
+    placement VARCHAR(128),
+    status VARCHAR(64) NOT NULL DEFAULT 'generated',
+
+    s3_bucket TEXT NOT NULL,
+    s3_key TEXT NOT NULL,
+    s3_url TEXT NOT NULL,
+    mime_type VARCHAR(128) NOT NULL DEFAULT 'image/png',
+
+    headline TEXT,
+    subheadline TEXT,
+    cta_text VARCHAR(128),
+    landing_url TEXT,
+
+    request_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    content_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_generated_contents_s3_key UNIQUE (s3_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_generated_contents_recommendation_result
+ON generated_contents (recommendation_result_id);
+
+CREATE INDEX IF NOT EXISTS idx_generated_contents_recommendation_action
+ON generated_contents (recommendation_action_id);
+
+CREATE INDEX IF NOT EXISTS idx_generated_contents_action
+ON generated_contents (recommendation_result_id, action_id);
+
+CREATE INDEX IF NOT EXISTS idx_generated_contents_project_status
+ON generated_contents (project_id, status);
+
+CREATE INDEX IF NOT EXISTS gin_generated_contents_content_json
+ON generated_contents USING GIN (content_json);
+
+DROP TRIGGER IF EXISTS trg_generated_contents_updated_at ON generated_contents;
+CREATE TRIGGER trg_generated_contents_updated_at
+BEFORE UPDATE ON generated_contents
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
