@@ -1,83 +1,124 @@
--- clickhouse-init.sql
--- 테이블 생성 전용. seed 이벤트는 넣지 않는다.
+-- clickhouse/schema.sql
+-- Loop Ad MVP ClickHouse schema
 --
--- 설계 원칙:
--- 1. ClickHouse는 사용자 행동 로그와 보상 계산 원천 데이터를 저장한다.
--- 2. 톰슨 샘플링의 alpha/beta 현재 상태는 PostgreSQL bandit_arms에 저장한다.
--- 3. ClickHouse events에는 어떤 bandit arm/decision/action에서 발생한 이벤트인지 추적할 수 있는 식별자를 남긴다.
--- 4. reward update worker는 ClickHouse events를 집계해서 PostgreSQL bandit_arms를 업데이트한다.
+-- 기준:
+-- 1. Browser SDK가 Event Collector로 보내는 flat payload를 그대로 수용한다.
+-- 2. ClickHouse는 사용자 행동 로그와 reward 계산의 원천 이벤트 저장소다.
+-- 3. SDK가 보내지 않는 ingested_at/event_date는 ClickHouse에서 생성한다.
+-- 4. alpha/beta 같은 bandit 상태값은 PostgreSQL에 두고,
+--    ClickHouse에는 어떤 decision/arm/action에서 발생한 이벤트인지 추적 가능한 id만 남긴다.
 
 -- =========================================================
 -- 1. Raw Events
--- 모든 사용자 행동 이벤트의 원천 테이블.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS events
 (
-    project_id LowCardinality(String),
+    -- -----------------------------------------------------
+    -- Required identifiers
+    -- SDK가 항상 보내는 필수 식별자
+    -- -----------------------------------------------------
+    project_id      LowCardinality(String),
+    event_id        String,
+    user_id         String,
+    session_id      String,
 
-    event_id String,
-    user_id String,
-    session_id String,
+    -- SDK는 ISO string으로 보내고,
+    -- Event Collector가 DateTime64(3, 'UTC')로 변환해서 insert한다.
+    event_time      DateTime64(3, 'UTC'),
 
-    event_time DateTime64(3, 'Asia/Seoul'),
+    -- page_view, product_view, add_to_cart, checkout_start,
+    -- purchase, ad_impression, ad_click, coupon_issued, coupon_used 등
+    event_name      LowCardinality(String),
 
-    event_name LowCardinality(String),
+    -- -----------------------------------------------------
+    -- Segment / attribution context
+    -- SDK EventContext와 1:1 매핑
+    -- -----------------------------------------------------
+    channel         LowCardinality(String) DEFAULT '',
+    campaign_id     String DEFAULT '',
 
-    channel LowCardinality(String) DEFAULT '',
-    campaign_id String DEFAULT '',
+    age_group       LowCardinality(String) DEFAULT '',
+    gender          LowCardinality(String) DEFAULT '',
+    device          LowCardinality(String) DEFAULT '',
 
-    age_group LowCardinality(String) DEFAULT '',
-    gender LowCardinality(String) DEFAULT '',
-    device LowCardinality(String) DEFAULT '',
-
-    category String DEFAULT '',
-    product_id String DEFAULT '',
+    -- -----------------------------------------------------
+    -- Product / commerce context
+    -- -----------------------------------------------------
+    category         LowCardinality(String) DEFAULT '',
+    product_id       String DEFAULT '',
     inventory_status LowCardinality(String) DEFAULT '',
 
-    price Decimal(18, 2) DEFAULT 0,
-    quantity UInt32 DEFAULT 0,
-    revenue Decimal(18, 2) DEFAULT 0,
+    price            Decimal(18, 2) DEFAULT 0,
+    quantity         UInt32 DEFAULT 0,
+    revenue          Decimal(18, 2) DEFAULT 0,
 
-    coupon_id String DEFAULT '',
-    order_id String DEFAULT '',
+    coupon_id        String DEFAULT '',
+    order_id         String DEFAULT '',
 
-    -- 실험/액션/광고 추적
-    experiment_id String DEFAULT '',
-    variant_id LowCardinality(String) DEFAULT '',
-    action_id String DEFAULT '',
-    mapping_id String DEFAULT '',
-    ad_id String DEFAULT '',
-    creative_id String DEFAULT '',
+    -- -----------------------------------------------------
+    -- Experiment / action / ad tracking
+    -- -----------------------------------------------------
+    experiment_id    String DEFAULT '',
+    variant_id       LowCardinality(String) DEFAULT '',
+    action_id        String DEFAULT '',
+    mapping_id       String DEFAULT '',
 
-    -- 톰슨 샘플링 추적
-    bandit_policy_id String DEFAULT '',
-    bandit_arm_id String DEFAULT '',
+    ad_id            String DEFAULT '',
+    creative_id      String DEFAULT '',
+
+    -- -----------------------------------------------------
+    -- Bandit tracking
+    -- PostgreSQL bandit 상태와 연결하기 위한 식별자
+    -- -----------------------------------------------------
+    bandit_policy_id   String DEFAULT '',
+    bandit_arm_id      String DEFAULT '',
     bandit_decision_id String DEFAULT '',
 
-    -- reward_value는 구매/전환 이벤트에서 보상값을 명시적으로 넣고 싶을 때 사용.
-    -- Bernoulli reward면 purchase 이벤트에 1, 실패는 impression 대비 미구매로 worker가 계산해도 된다.
-    reward_value Float64 DEFAULT 0,
+    -- 구매, 클릭, 퍼널 진행 등 reward worker가 사용할 수 있는 값
+    reward_value       Float64 DEFAULT 0,
 
-    properties_json String DEFAULT '',
+    -- -----------------------------------------------------
+    -- Flexible properties
+    -- SDK가 JSON.stringify 해서 보내는 추가 속성
+    -- 예: page.url, page.path, sdk.version, element metadata 등
+    -- -----------------------------------------------------
+    properties_json    String DEFAULT '{}',
 
-    ingested_at DateTime64(3, 'Asia/Seoul') DEFAULT now64(3, 'Asia/Seoul'),
+    -- -----------------------------------------------------
+    -- Internal columns
+    -- SDK가 보내지 않는다.
+    -- -----------------------------------------------------
+    ingested_at DateTime64(3, 'UTC') DEFAULT now64(3, 'UTC'),
 
-    INDEX idx_event_id event_id TYPE bloom_filter(0.01) GRANULARITY 4,
-    INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 4,
-    INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 4,
-    INDEX idx_product_id product_id TYPE bloom_filter(0.01) GRANULARITY 4,
-    INDEX idx_experiment_id experiment_id TYPE bloom_filter(0.01) GRANULARITY 4,
-    INDEX idx_bandit_arm_id bandit_arm_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    -- 대시보드에서 한국 시간 기준 일자 집계를 쉽게 하기 위한 materialized column
+    event_date Date MATERIALIZED toDate(toTimeZone(event_time, 'Asia/Seoul')),
+
+    -- -----------------------------------------------------
+    -- Data skipping indexes
+    -- -----------------------------------------------------
+    INDEX idx_event_id           event_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_user_id            user_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_session_id         session_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_product_id         product_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_campaign_id        campaign_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_experiment_id      experiment_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_action_id          action_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_mapping_id         mapping_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_ad_id              ad_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_creative_id        creative_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_bandit_policy_id   bandit_policy_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_bandit_arm_id      bandit_arm_id TYPE bloom_filter(0.01) GRANULARITY 4,
     INDEX idx_bandit_decision_id bandit_decision_id TYPE bloom_filter(0.01) GRANULARITY 4
 )
 ENGINE = MergeTree
-PARTITION BY toYYYYMM(event_time)
-ORDER BY (
+PARTITION BY toYYYYMM(event_date)
+ORDER BY
+(
     project_id,
-    event_time,
+    event_date,
     event_name,
     session_id,
     user_id,
-    product_id
+    event_time
 );
